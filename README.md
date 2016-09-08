@@ -31,16 +31,121 @@ plist只能将某些特定类通过XML文件的方式保存到沙盒中,支持�
       NSNumber;                             //基本数据
       NSDate;                               //日期
 
+###基本用法: 以存入字典为例,其他类型类似
+
+1)数据写入
+
+      - (void)writeUserInfoToPlist {
+          // 获取存储路径
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          // 将path路径与文件名片接起来组成新的路径
+          NSString *fileName = [path stringByAppendingPathComponent:@"userinfo.plist"];
+          NSDictionary *userInfoDict = @{@"name":@"张三", @"age":@16};
+          // 自动写入该plist文件中
+          [userInfoDict writeToFile:fileName atomically:YES];
+      }
+
+2)数据读取
+
+      - (NSDictionary *)readUserInfoFromPlist {
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          NSString *fileName = [path stringByAppendingPathComponent:@"userinfo.plist"];
+          NSDictionary *userInfoDict = [NSDictionary dictionaryWithContentsOfFile:fileName];
+          return userInfoDict;
+      }
 
 
+3)删除整个plist文件
+
+      - (void)deleteUserInfoPlist {
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          NSString *fileName = [path stringByAppendingPathComponent:@"userinfo.plist"];
+          NSFileManager *fileManager = [[NSFileManager alloc] init];
+          if ([fileManager fileExistsAtPath:fileName]) {
+               [fileManager removeItemAtPath:fileName error:nil];
+          }
+      }
 
 
+###接下来我们以实际的项目需求为例,建立一个新闻信息本地收藏
+
+1)添加新闻
+在添加新闻信息的时候,我们需要考虑的问题有:是否有该plist文件,如果没有则需要创建,如果有,则直接写入
+
+      /**
+       *  添加新闻
+       *
+       *  @param dict      新闻详细信息
+       *  @param articalId 新闻Id 作为信息的唯一标示
+       */
+      - (void)saveNewsWithDict:(NSMutableDictionary *)dict withKey:(NSString *)articalId{
+          if (articalId.length == 0) { return; }
+          
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          NSString *fileName = [path stringByAppendingPathComponent:@"newsCollection.plist"];
+          NSFileManager *fileManager = [[NSFileManager alloc] init];
+          // 判断plist文件是否存在,不存在就创建
+          if (![fileManager fileExistsAtPath:fileName]) {
+              // 判断创建是否成功
+              if (![fileManager createFileAtPath:fileName contents:nil attributes:nil]) {
+                  NSLog(@"create plist error");
+              } else {
+                  NSDictionary *newsMessageDict = [NSDictionary dictionaryWithObjectsAndKeys:dict, articalId, nil];
+                  BOOL isSaveSuccess = [newsMessageDict writeToFile:fileName atomically:YES];
+                  NSLog(@"save state : %d", isSaveSuccess);
+              }
+          } else { // 若plist存在
+              // 存plist中取出信息
+              NSMutableDictionary *newsMessageDict = [[NSMutableDictionary alloc] initWithContentsOfFile:fileName];
+              // 添加信息
+              [newsMessageDict setObject:dict forKey:articalId];
+              BOOL isSaveSuccess = [newsMessageDict writeToFile:fileName atomically:YES];
+              NSLog(@"save state : %d", isSaveSuccess);
+          }
+          
+      }
+
+2)读取全部的新闻信息 以ID排序输出一个数组
+
+      /**
+       *  读取全部的新闻信息
+       */
+      - (NSMutableArray *)readAllNewsMessageFromPlist {
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          NSString *fileName = [path stringByAppendingPathComponent:@"newsCollection.plist"];
+          // 获取存储的信息
+          NSMutableDictionary *newsMessageDict = [[NSMutableDictionary alloc] initWithContentsOfFile:fileName];
+          // 获取所有key 顺便排序下
+          NSArray *keyValue = [[newsMessageDict allKeys] sortedArrayUsingSelector:@selector(compare:)];
+          
+          NSMutableArray *newsMessageArray = [[NSMutableArray alloc] init];
+          [keyValue enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+              NSDictionary *dict = [newsMessageDict objectForKey:obj];
+              [newsMessageArray addObject:dict];
+          }];
+          NSLog(@"news message array : %@", newsMessageArray);
+          return newsMessageArray;
+      }
 
 
+3)删除某个新闻
 
-
-
-
+      /**
+       *  删除某个新闻
+       *
+       *  @param newsId 要删除的新闻ID
+       */
+      - (void)deleteNewsMessageFromPlistWithID:(NSString *)newsId {
+          NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+          NSString *fileName = [path stringByAppendingPathComponent:@"newsCollection.plist"];
+          // 获取存储的信息
+          NSMutableDictionary *newsMessageDict = [[NSMutableDictionary alloc] initWithContentsOfFile:fileName];
+          [newsMessageDict removeObjectForKey:newsId];
+          BOOL isSaveSuccess = [newsMessageDict writeToFile:fileName atomically:YES];
+          if (isSaveSuccess) {
+              NSLog(@"delete newsid %@ is success", newsId);
+          }
+      }
 
 
 
